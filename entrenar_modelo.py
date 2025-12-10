@@ -10,14 +10,14 @@ from sklearn.metrics import mean_squared_error, r2_score
 import joblib
 import os
 
-print("🚀 Iniciando proceso de entrenamiento...")
+print("Iniciando proceso de entrenamiento...")
 
 # --- 1. CARGA DE DATOS ---
 def load_data():
     base_path = "dataset" 
     
     
-    print("   Cargando archivos CSV...")
+    print("Cargando archivos CSV...")
     try:
         
         df_consumption = pd.read_csv(os.path.join(base_path, 'building_consumption.csv'))
@@ -26,7 +26,7 @@ def load_data():
         df_calendar = pd.read_csv(os.path.join(base_path, 'calender.csv'))
         return df_consumption, df_weather, df_meta, df_calendar
     except FileNotFoundError as e:
-        print(f"❌ Error: No se encontró algún archivo. Verifica las rutas. {e}")
+        print(f"Error: No se encontró algún archivo. Verifica las rutas. {e}")
         exit()
 
 df_consumo, df_clima, df_meta, df_calendario = load_data()
