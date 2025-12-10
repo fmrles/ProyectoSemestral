@@ -1,0 +1,16 @@
+meter_id,event_type,date,event_description
+10,HVAC_Tuning,2025-01-12,HVAC Tuning performed on meter 10
+9,Building_Shutdown,2025-01-25,Building Shutdown performed on meter 9
+1,HVAC_Tuning,2025-01-29,HVAC Tuning performed on meter 1
+7,Building_Shutdown,2025-01-29,Building Shutdown performed on meter 7
+6,Building_Shutdown,2025-02-02,Building Shutdown performed on meter 6
+9,Maintenance_Scheduled,2025-02-15,Maintenance Scheduled performed on meter 9
+10,Maintenance_Scheduled,2025-02-26,Maintenance Scheduled performed on meter 10
+9,Building_Shutdown,2025-03-03,Building Shutdown performed on meter 9
+9,Building_Shutdown,2025-03-06,Building Shutdown performed on meter 9
+6,HVAC_Tuning,2025-03-11,HVAC Tuning performed on meter 6
+5,HVAC_Tuning,2025-03-14,HVAC Tuning performed on meter 5
+7,Sensor_Fault,2025-03-21,Sensor Fault performed on meter 7
+1,Building_Shutdown,2025-03-21,Building Shutdown performed on meter 1
+2,HVAC_Tuning,2025-03-24,HVAC Tuning performed on meter 2
+7,Equipment_Replacement,2025-03-25,Equipment Replacement performed on meter 7
