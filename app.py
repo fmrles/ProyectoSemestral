@@ -1,247 +1,255 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
+import pickle
+import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
-import matplotlib.pyplot as plt
-import joblib # Para cargar el modelo OFFLINE
 import os
-import io
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="MLP: Experimentación y Predicción",
+    page_title="Predicción Energética: Campus UBB",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# --- 1. CARGA DE DATOS (Necesario para el entrenamiento en vivo) ---
+# --- 2. FUNCIONES DE CARGA ---
+@st.cache_resource
+def load_resources():
+    """Carga el modelo y el historial de entrenamiento."""
+    resources = {}
+    try:
+        resources['model'] = joblib.load('mlp_model_entrenado.pkl')
+    except:
+        resources['model'] = None
+        
+    try:
+        resources['loss_history'] = joblib.load('loss_history.pkl')
+    except:
+        resources['loss_history'] = None
+    return resources
+
+resources = load_resources()
+final_pipeline = resources['model']
+loss_history_offline = resources['loss_history']
+
+# --- DATOS SINTÉTICOS PARA DEMO VIVA ---
 @st.cache_data
 def get_synthetic_data():
-    """Genera un dataset sintético ligero para la experimentación en vivo."""
-    N = 2000
+    N = 1000
     dates = pd.date_range(start="2025-01-01", periods=N, freq="h")
     data = {
-        'timestamp': dates,
         'air_temperature': np.random.uniform(5, 35, N), 
         'gross_floor_area': np.random.uniform(500, 5000, N), 
-        'category': np.random.choice(['office', 'teaching', 'library'], N),
         'hour': dates.hour
     }
     df = pd.DataFrame(data)
-    # Target: Consumo (con efecto U de la temperatura + factor de área)
-    df['consumption'] = (
-        (df['air_temperature'] - 20)**2 * 1.5 + 
-        df['gross_floor_area'] * 0.05 + 
-        np.random.normal(0, 5, N) + 500
-    )
+    df['consumption'] = (df['air_temperature'] - 20)**2 + df['gross_floor_area']*0.05 + np.random.normal(0,5,N) + 200
     return df
 
-# --- 2. CARGA DEL MODELO FINAL (Modelo OFFLINE) ---
-@st.cache_resource
-def load_final_model():
-    """Carga el modelo final entrenado con el script externo (entrenar_modelo.py)."""
-    model_path = 'mlp_model_entrenado.pkl'
-    try:
-        pipeline = joblib.load(model_path)
-        return pipeline
-    except FileNotFoundError:
-        return None
+st.title(" Predicción Energética - Campus Universitario")
 
-# --- 3. INICIALIZACIÓN DE VARIABLES GLOBALES ---
-df_synth = get_synthetic_data()
-final_pipeline = load_final_model()
-target_col = 'consumption'
-feature_cols = ['air_temperature', 'gross_floor_area', 'hour'] # Subconjunto para el simulador
-
-# Si el modelo offline está cargado, usamos sus features para el simulador
-if final_pipeline:
-    # Intenta obtener los nombres de features del pipeline para el simulador
-    try:
-        feature_names = final_pipeline.named_steps['preprocessor'].transformers_[0][2]
-    except:
-        feature_names = feature_cols
-    
-# TABS PRINCIPALES
-tab_exp, tab_sim = st.tabs(["1. Experimento de Entrenamiento", "2. Simulador y Predicción"])
-
+# --- TABS ---
+tab_exp, tab_sim, tab_context = st.tabs(["1. Lab de Entrenamiento", "2. Simulador de Campus", "3. Contexto Analítico"])
 
 # ====================================================================
-# PESTAÑA 1: EXPERIMENTACIÓN INTERACTIVA (TRAINING EN VIVO)
+# TAB 1: LABORATORIO (Mismo código anterior)
 # ====================================================================
 with tab_exp:
-    st.header("1. Experimentación Interactiva (MLP)")
-    st.info("Utiliza este panel para entrenar el modelo en vivo, ajustar hiperparámetros y observar la convergencia (Curva de Error).")
-
-    # A. CONTROLES DE HIPERPARÁMETROS
-    st.subheader("Configuración del Perceptrón Multicapa")
-    col1, col2, col3 = st.columns(3)
+    st.header(" Laboratorio de Entrenamiento en Vivo")
+    st.info("Entrena una versión simplificada del modelo para probar hiperparámetros.")
     
-    # Control para Capas Ocultas
+    col1, col2 = st.columns(2)
     with col1:
-        h_layers_choice = st.selectbox(
-            "Capas Ocultas (Tamaño)",
-            options=['(100, 50)', '(64, 32)', '(50,)', '(20, 20, 20)'],
-            index=1,
-            help="Define el número de neuronas por capa. Ej: (100, 50) son 2 capas."
-        )
-        # Convertir el string de capas a una tupla
-        h_layers = eval(h_layers_choice)
-        
-    # Control para Activación
+        h_layers = eval(st.selectbox("Capas Ocultas", ['(50,)', '(100, 50)', '(64, 32)'], index=0))
     with col2:
-        activ = st.selectbox("Función de Activación", ["relu", "tanh", "logistic"], index=0)
+        iters = st.slider("Iteraciones", 50, 500, 200)
+
+    if st.button("⚡ Entrenar Demo"):
+        df_synth = get_synthetic_data()
+        X = df_synth[['air_temperature', 'gross_floor_area', 'hour']]
+        y = df_synth['consumption']
         
-    # Control para Iteraciones
-    with col3:
-        iters = st.slider("Máx. Iteraciones (Épocas)", 50, 1000, 300)
-    
-    
-    if st.button("Entrenar y Graficar Curva de Error", type="primary"):
-        # Preparación de datos (Feature Engineering simple para la demo)
-        X_synth = df_synth[['air_temperature', 'gross_floor_area', 'hour']]
-        y_synth = df_synth[target_col]
+        # Scaling simple manual para la demo
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
         
-        # División y Escalado (Necesario para entrenamiento)
-        X_train, X_test, y_train, y_test = train_test_split(X_synth, y_synth, test_size=0.2, random_state=42)
-        scaler_X = StandardScaler().fit(X_train)
-        scaler_y = StandardScaler().fit(y_train.values.reshape(-1, 1))
+        model = MLPRegressor(hidden_layer_sizes=h_layers, max_iter=iters, random_state=42)
+        model.fit(X_scaled, y)
         
-        X_train_s = scaler_X.transform(X_train)
-        y_train_s = scaler_y.transform(y_train.values.reshape(-1, 1)).ravel() # .ravel() para MLPRegressor
-        
-        # --- MODELO Y ENTRENAMIENTO ---
-        model_exp = MLPRegressor(
-            hidden_layer_sizes=h_layers,
-            activation=activ,
-            max_iter=iters,
-            random_state=42,
-            solver='sgd', # Usar SGD para ver mejor la curva de error por epoch
-            learning_rate_init=0.01,
-            warm_start=True # Permitir entrenar y guardar la curva de error
-        )
-        
-        # Entrenar en ciclos para capturar la CURVA DE ERROR (MSE/Loss)
-        loss_history = []
-        status_text = st.empty()
-        
-        for i in range(iters):
-            model_exp.partial_fit(X_train_s, y_train_s)
-            current_loss = model_exp.loss_
-            loss_history.append(current_loss)
-            
-            # Actualizar barra de progreso en vivo
-            status_text.progress((i + 1) / iters)
-        
-        # --- EVALUACIÓN Y VISUALIZACIÓN ---
-        st.subheader("Resultados de la Experimentación")
-        
-        # 1. Gráfico de la Curva de Error (Requisito)
-        fig_loss, ax_loss = plt.subplots(figsize=(10, 4))
-        ax_loss.plot(loss_history, label='Curva de Error (Loss)')
-        ax_loss.set_title(f"Convergencia del Modelo (Activación: {activ})")
-        ax_loss.set_xlabel("Épocas")
-        ax_loss.set_ylabel("Error Cuadrático (Loss)")
-        ax_loss.grid(True, alpha=0.3)
-        st.pyplot(fig_loss)
-        
-        # 2. Métricas Finales
-        y_pred_test_s = model_exp.predict(scaler_X.transform(X_test))
-        y_pred_test = scaler_y.inverse_transform(y_pred_test_s.reshape(-1, 1))
-        
-        rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
-        r2 = r2_score(y_test, y_pred_test)
-        
-        st.metric("RMSE Final (Error Cuadrático)", f"{rmse:.2f} kWh", delta_color="off")
-        st.metric("R2 Score", f"{r2:.3f}", delta_color="off")
-        
-        st.success("Experimento completado y métricas calculadas.")
+        st.subheader("Curva de Aprendizaje")
+        fig, ax = plt.subplots(figsize=(8, 3))
+        ax.plot(model.loss_curve_)
+        ax.set_xlabel("Iteraciones")
+        ax.set_ylabel("Loss")
+        ax.grid(True, alpha=0.3)
+        st.pyplot(fig)
+        st.success(f"Entrenamiento finalizado. Loss: {model.loss_:.4f}")
 
 
 # ====================================================================
-# PESTAÑA 2: SIMULADOR Y PREDICCIÓN (USANDO EL MODELO FINAL OFFLINE)
+# TAB 2: SIMULADOR DE CAMPUS (LÓGICA ACTUALIZADA)
 # ====================================================================
 with tab_sim:
-    st.header("2. Simulador de Predicción (Modelo Final)")
-    st.markdown("Utiliza el modelo final pre-entrenado para estimar el consumo en tiempo real.")
+    st.header(" Simulador de Consumo: Escenario Campus")
+    
+    if final_pipeline:
+        # --- SELECCIÓN DE MODO ---
+        mode = st.radio("Modo de Simulación:", [" Edificio Individual", " Campus Completo (Personalizado)"], horizontal=True)
+        st.markdown("---")
 
-    if final_pipeline is not None:
-        
-        # --- PARÁMETROS DEL SIMULADOR ---
-        col_c, col_t = st.columns(2)
-        
-        with col_c:
-            st.subheader("Condiciones de la Predicción")
-            # Los nombres de las variables deben coincidir con el entrenamiento offline
-            temp = st.slider("Temperatura del Aire (°C)", -5.0, 45.0, 20.0, key="sim_temp")
-            area = st.number_input("Área Bruta (m²)", 100.0, 10000.0, 1000.0, key="sim_area")
-            wind = st.number_input("Velocidad del Viento (km/h)", 0.0, 100.0, 10.0, key="sim_wind")
-            
-        with col_t:
-            st.subheader("Contexto Temporal y Edificio")
-            hora = st.slider("Hora del día", 0, 23, 12, key="sim_hour")
-            dia_sem = st.selectbox("Día de la Semana", range(7), key="sim_day", format_func=lambda x: ['Lun','Mar','Mie','Jue','Vie','Sab','Dom'][x])
-            es_feriado = st.checkbox("¿Es Feriado?", value=False, key="sim_holiday")
-            
-            # Categorías deben coincidir con las usadas en el entrenamiento
-            categorias = ['office', 'teaching', 'library', 'mixed use', 'other'] 
-            cat_edificio = st.selectbox("Categoría del Edificio", categorias, key="sim_cat")
+        # --- PARÁMETROS AMBIENTALES (Comunes) ---
+        st.subheader("1. Condiciones Ambientales y Temporales")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: temp = st.slider("Temperatura (°C)", -5.0, 45.0, 22.0)
+        with c2: wind = st.number_input("Viento (km/h)", 0.0, 100.0, 12.0)
+        with c3: hora = st.slider("Hora del Día", 0, 23, 14) 
+        with c4: dia = st.selectbox("Día Semana", range(7), format_func=lambda x: ['Lun','Mar','Mie','Jue','Vie','Sab','Dom'][x])
+        feriado = st.checkbox("¿Es Feriado?")
 
-        if st.button("Generar Predicción", use_container_width=True, type="primary"):
+        # -----------------------------------------------------------
+        # MODO A: EDIFICIO INDIVIDUAL
+        # -----------------------------------------------------------
+        if mode == " Edificio Individual":
+            st.subheader("2. Detalles del Edificio")
+            cc1, cc2 = st.columns(2)
+            with cc1: area = st.number_input("Área (m²)", 100.0, 10000.0, 1500.0)
+            with cc2: cat = st.selectbox("Categoría", ['office', 'teaching', 'library', 'mixed use', 'other'])
             
-            # Crear DataFrame de entrada con las 8 features (Nombres exactos del entrenamiento)
-            input_data = pd.DataFrame({
-                'air_temperature': [temp],
-                'relative_humidity': [50.0], # Asumir valor fijo si no se incluye en input
-                'wind_speed': [wind],
-                'gross_floor_area': [area],
-                'hour': [hora],
-                'day_of_week': [dia_sem],
-                'month': [6], # Asumir mes fijo
-                'is_holiday': [1 if es_feriado else 0],
-                'category': [cat_edificio]
-            })
+            if st.button("Calcular Consumo Individual", type="primary"):
+                input_df = pd.DataFrame({
+                    'air_temperature': [temp], 'relative_humidity': [50], 'wind_speed': [wind],
+                    'gross_floor_area': [area], 'hour': [hora], 'day_of_week': [dia],
+                    'month': [6], 'is_holiday': [1 if feriado else 0], 'category': [cat]
+                })
+                pred = final_pipeline.predict(input_df)[0]
+                st.metric("Consumo Estimado", f"{pred:.2f} kWh")
+
+        # -----------------------------------------------------------
+        # MODO B: CAMPUS COMPLETO (PERSONALIZADO)
+        # -----------------------------------------------------------
+        else:
+            st.subheader("2. Composición Personalizada del Campus")
+            st.info("Define la cantidad y el área específica para cada tipo de edificio.")
             
-            # --- PREDICCIÓN Y VISUALIZACIÓN ---
-            try:
-                # El pipeline se encarga del escalado y one-hot encoding
-                prediccion_kwh = final_pipeline.predict(input_data)[0]
+            # Contenedor para la configuración
+            campus_config = []
+            
+            # Definimos columnas para cabecera visual
+            h1, h2, h3 = st.columns([1, 1, 2])
+            with h1: st.markdown("**Tipo de Edificio**")
+            with h2: st.markdown("**Cantidad**")
+            with h3: st.markdown("**Área Unitaria (m²)**")
+
+            # --- INPUTS PARA CADA TIPO ---
+            
+            # 1. OFICINAS
+            c_off1, c_off2, c_off3 = st.columns([1, 1, 2])
+            with c_off1: st.markdown(" Oficinas")
+            with c_off2: q_off = st.number_input("Cant. Oficinas", 0, 50, 5, label_visibility="collapsed")
+            with c_off3: a_off = st.number_input("Área Oficina", 100, 10000, 1500, label_visibility="collapsed")
+            campus_config.append({'cat': 'office', 'count': q_off, 'area': a_off})
+
+            # 2. AULAS (TEACHING)
+            c_tea1, c_tea2, c_tea3 = st.columns([1, 1, 2])
+            with c_tea1: st.markdown(" Aulas")
+            with c_tea2: q_tea = st.number_input("Cant. Aulas", 0, 50, 8, label_visibility="collapsed")
+            with c_tea3: a_tea = st.number_input("Área Aulas", 100, 10000, 2500, label_visibility="collapsed")
+            campus_config.append({'cat': 'teaching', 'count': q_tea, 'area': a_tea})
+
+            # 3. BIBLIOTECAS
+            c_lib1, c_lib2, c_lib3 = st.columns([1, 1, 2])
+            with c_lib1: st.markdown(" Bibliotecas")
+            with c_lib2: q_lib = st.number_input("Cant. Bibliotecas", 0, 10, 1, label_visibility="collapsed")
+            with c_lib3: a_lib = st.number_input("Área Biblioteca", 100, 20000, 4000, label_visibility="collapsed")
+            campus_config.append({'cat': 'library', 'count': q_lib, 'area': a_lib})
+
+            # 4. USO MIXTO
+            c_mix1, c_mix2, c_mix3 = st.columns([1, 1, 2])
+            with c_mix1: st.markdown(" Uso Mixto")
+            with c_mix2: q_mix = st.number_input("Cant. Mixto", 0, 20, 2, label_visibility="collapsed")
+            with c_mix3: a_mix = st.number_input("Área Mixto", 100, 15000, 3000, label_visibility="collapsed")
+            campus_config.append({'cat': 'mixed use', 'count': q_mix, 'area': a_mix})
+
+            # 5. OTROS
+            c_oth1, c_oth2, c_oth3 = st.columns([1, 1, 2])
+            with c_oth1: st.markdown(" Otros")
+            with c_oth2: q_oth = st.number_input("Cant. Otros", 0, 20, 2, label_visibility="collapsed")
+            with c_oth3: a_oth = st.number_input("Área Otros", 100, 5000, 1000, label_visibility="collapsed")
+            campus_config.append({'cat': 'other', 'count': q_oth, 'area': a_oth})
+
+
+            st.markdown("---")
+            if st.button(" Simular Campus Completo", type="primary"):
+                total_consumption = 0
+                breakdown = {}
                 
-                st.markdown("---")
-                st.subheader("Resultado Estimado")
-                st.metric(label="Consumo Predicho", value=f"{prediccion_kwh:,.2f} kWh", delta_color="off")
+                # Iteramos sobre la configuración ingresada por el usuario
+                for item in campus_config:
+                    count = item['count']
+                    area_user = item['area']
+                    cat = item['cat']
+                    
+                    if count > 0:
+                        # Preparamos el input para 1 edificio de este tipo y tamaño específico
+                        input_df = pd.DataFrame({
+                            'air_temperature': [temp], 'relative_humidity': [50], 'wind_speed': [wind],
+                            'gross_floor_area': [area_user], 'hour': [hora], 'day_of_week': [dia],
+                            'month': [6], 'is_holiday': [1 if feriado else 0], 'category': [cat]
+                        })
+                        
+                        # Predicción unitaria * cantidad
+                        pred_unit = final_pipeline.predict(input_df)[0]
+                        total_cat = pred_unit * count
+                        
+                        total_consumption += total_cat
+                        breakdown[cat] = total_cat
+
+                # --- VISUALIZACIÓN DE RESULTADOS ---
+                c_res1, c_res2 = st.columns([1, 2])
                 
-                # Gráfico de Consumo Predictivo (Requisito)
-                st.markdown("### 📈 Visualización del Ciclo Diario Proyectado")
+                with c_res1:
+                    st.metric("Consumo TOTAL Campus", f"{total_consumption:,.2f} kWh", delta="Simulación instantánea")
+                    st.caption(f"Calculado para {hora}:00 hrs con condiciones actuales.")
                 
-                # Crear un ciclo diario variando solo la hora
-                horas_proyectadas = list(range(0, 24))
-                df_proy = input_data.loc[input_data.index.repeat(24)].reset_index(drop=True)
-                df_proy['hour'] = horas_proyectadas
-                
-                # Predecir el ciclo completo
-                consumo_proyectado = final_pipeline.predict(df_proy)
-                
-                df_vis = pd.DataFrame({'Hora': horas_proyectadas, 'Consumo (kWh)': consumo_proyectado})
-                
-                # Marcar la hora de predicción actual
-                df_vis['Actual'] = np.where(df_vis['Hora'] == hora, df_vis['Consumo (kWh)'], np.nan)
-                
-                fig_cycle, ax_cycle = plt.subplots(figsize=(10, 5))
-                ax_cycle.plot(df_vis['Hora'], df_vis['Consumo (kWh)'], marker='o', linestyle='-', label='Ciclo Proyectado')
-                ax_cycle.scatter(df_vis['Hora'], df_vis['Actual'], color='red', s=100, zorder=5, label='Predicción Actual')
-                
-                ax_cycle.set_title(f"Consumo Proyectado del Edificio '{cat_edificio}' para el día {['Lun','Mar','Mie','Jue','Vie','Sab','Dom'][dia_sem]}")
-                ax_cycle.set_xlabel("Hora del Día")
-                ax_cycle.set_ylabel("Consumo Estimado (kWh)")
-                ax_cycle.grid(True, alpha=0.3)
-                ax_cycle.legend()
-                st.pyplot(fig_cycle)
-                
-            except Exception as e:
-                st.error(f"Error en la predicción. Asegúrate de que los inputs sean consistentes con el entrenamiento: {e}")
-                
+                with c_res2:
+                    st.write("#### Distribución del Consumo por Tipo")
+                    if total_consumption > 0:
+                        fig, ax = plt.subplots(figsize=(6, 3))
+                        labels = list(breakdown.keys())
+                        values = list(breakdown.values())
+                        # Colores personalizados para cada categoría
+                        colors = ['#ff9999','#66b3ff','#99ff99','#ffcc99','#c2c2f0']
+                        ax.pie(values, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors[:len(labels)])
+                        ax.axis('equal') 
+                        st.pyplot(fig)
+                    else:
+                        st.warning("Configura al menos un edificio para ver resultados.")
+
     else:
-        st.warning("El simulador está inactivo. Asegúrate de que el archivo 'mlp_model_entrenado.pkl' exista en el directorio raíz.")
+        st.error(" Modelo offline no encontrado. Ejecuta 'entrenar_modelo.py' primero.")
+
+
+# ====================================================================
+# TAB 3: CONTEXTO (Mismo código anterior)
+# ====================================================================
+with tab_context:
+    st.header(" Contexto del Modelo (Pre-Entrenamiento)")
+    
+    col_metrics, col_graph = st.columns([1, 2])
+    with col_metrics:
+        st.subheader("Arquitectura")
+        if final_pipeline:
+            mlp = final_pipeline.named_steps['regressor']
+            st.code(f"Capas: {mlp.hidden_layer_sizes}\nActiv: {mlp.activation}\nIter: {mlp.n_iter_}")
+    with col_graph:
+        st.subheader("Convergencia Real")
+        if loss_history_offline:
+            fig3, ax3 = plt.subplots(figsize=(8, 3))
+            ax3.plot(loss_history_offline, color='green')
+            ax3.set_ylabel("Loss")
+            st.pyplot(fig3)
