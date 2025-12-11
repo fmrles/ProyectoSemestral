@@ -65,7 +65,7 @@ if final_pipeline:
         feature_names = feature_cols
     
 # TABS PRINCIPALES
-tab_exp, tab_sim = st.tabs(["🧪 1. Experimento de Entrenamiento", "🔮 2. Simulador y Predicción"])
+tab_exp, tab_sim = st.tabs(["1. Experimento de Entrenamiento", "2. Simulador y Predicción"])
 
 
 # ====================================================================
@@ -99,7 +99,7 @@ with tab_exp:
         iters = st.slider("Máx. Iteraciones (Épocas)", 50, 1000, 300)
     
     
-    if st.button("🚀 Entrenar y Graficar Curva de Error", type="primary"):
+    if st.button("Entrenar y Graficar Curva de Error", type="primary"):
         # Preparación de datos (Feature Engineering simple para la demo)
         X_synth = df_synth[['air_temperature', 'gross_floor_area', 'hour']]
         y_synth = df_synth[target_col]
@@ -136,7 +136,7 @@ with tab_exp:
             status_text.progress((i + 1) / iters)
         
         # --- EVALUACIÓN Y VISUALIZACIÓN ---
-        st.subheader("📊 Resultados de la Experimentación")
+        st.subheader("Resultados de la Experimentación")
         
         # 1. Gráfico de la Curva de Error (Requisito)
         fig_loss, ax_loss = plt.subplots(figsize=(10, 4))
@@ -157,7 +157,7 @@ with tab_exp:
         st.metric("RMSE Final (Error Cuadrático)", f"{rmse:.2f} kWh", delta_color="off")
         st.metric("R2 Score", f"{r2:.3f}", delta_color="off")
         
-        st.success("✅ Experimento completado y métricas calculadas.")
+        st.success("Experimento completado y métricas calculadas.")
 
 
 # ====================================================================
@@ -189,7 +189,7 @@ with tab_sim:
             categorias = ['office', 'teaching', 'library', 'mixed use', 'other'] 
             cat_edificio = st.selectbox("Categoría del Edificio", categorias, key="sim_cat")
 
-        if st.button("🔮 Generar Predicción", use_container_width=True, type="primary"):
+        if st.button("Generar Predicción", use_container_width=True, type="primary"):
             
             # Crear DataFrame de entrada con las 8 features (Nombres exactos del entrenamiento)
             input_data = pd.DataFrame({
