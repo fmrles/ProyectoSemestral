@@ -335,4 +335,257 @@ with tab_sim:
                         ax2.grid(True, alpha=0.3, axis='y')
                         st.pyplot(fig2)
                 else:
-                    st.info("Debe configurar los parámetros y presione 'Calcular Predicción' para ver los resultados.")
+                    st.info("Debe configurar los parámetros y presione 'Calcular Predicción' para ver los resultados.") 
+
+        # ===== MODO CAMPUS COMPLETO =====
+        elif "Campus" in mode:
+            st.subheader("Configuración del Campus")
+            
+            col_config, col_ambient = st.columns([2, 1])
+            
+            with col_ambient:
+                st.markdown("*Condiciones Ambientales*")
+                temp_c = st.slider("Temperatura (°C)", -5.0, 45.0, 22.0, key="tc")
+                wind_c = st.slider("Viento (km/h)", 0.0, 50.0, 10.0, key="wc")
+                hora_c = st.slider("Hora del día", 0, 23, 14, key="hc")
+                dia_c = st.selectbox("Día", range(7), format_func=lambda x: ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][x], key="dc")
+                feriado_c = st.checkbox("¿Feriado?", key="fc")
+            
+            with col_config:
+                st.markdown("*Composición del Campus*")
+                
+                campus_data = []
+                edificios = [
+                    ("Oficinas", "office", 5, 1500),
+                    ("Aulas/Facultades", "teaching", 8, 2500),
+                    ("Biblioteca", "library", 1, 4000),
+                    ("Uso Mixto", "mixed use", 3, 3000),
+                    ("Otros", "other", 2, 1000)
+                ]
+                
+                cols = st.columns(3)
+                cols[0].markdown("**Tipo**")
+                cols[1].markdown("**Cantidad**")
+                cols[2].markdown("**Área (m²)**")
+                
+                for nombre, cat, cant_def, area_def in edificios:
+                    cols = st.columns(3)
+                    with cols[0]:
+                        st.markdown(f"**{nombre}**")
+                    with cols[1]:
+                        cant = st.number_input(f"Cant {nombre}", 0, 50, cant_def, key=f"cant_{cat}", label_visibility="collapsed")
+                    with cols[2]:
+                        area = st.number_input(f"Área {nombre}", 100, 50000, area_def, key=f"area_{cat}", label_visibility="collapsed")
+                    campus_data.append({'nombre': nombre, 'cat': cat, 'count': cant, 'area': area})
+            
+            if st.button("Simular Campus", type="primary", use_container_width=True):
+                total_consumption = 0
+                breakdown = {}
+                details = []
+                
+                for item in campus_data:
+                    if item['count'] > 0:
+                        input_df = pd.DataFrame({
+                            'air_temperature': [temp_c],
+                            'relative_humidity': [50],
+                            'wind_speed': [wind_c],
+                            'gross_floor_area': [item['area']],
+                            'hour': [hora_c],
+                            'day_of_week': [dia_c],
+                            'month': [6],
+                            'is_holiday': [1 if feriado_c else 0],
+                            'category': [item['cat']]
+                        })
+                        pred_unit = max(0, final_pipeline.predict(input_df)[0])
+                        total_cat = pred_unit * item['count']
+                        total_consumption += total_cat
+                        breakdown[item['nombre']] = total_cat
+                        details.append({
+                            'Tipo': item['nombre'],
+                            'Cantidad': item['count'],
+                            'Área Unit.': f"{item['area']:,} m²",
+                            'Consumo Unit.': f"{pred_unit:.2f} kWh",
+                            'Consumo Total': f"{total_cat:.2f} kWh"
+                        })
+                
+                st.markdown("---")
+                
+                # Métricas principales
+                col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+                with col_r1:
+                    st.metric("Consumo Total", f"{total_consumption:,.2f} kWh")
+                with col_r2:
+                    st.metric("Consumo Diario Est.", f"{total_consumption * 24 / 1000:,.2f} MWh")
+                with col_r3:
+                    total_edificios = sum([d['count'] for d in campus_data])
+                    st.metric("Total Edificios", total_edificios)
+                with col_r4:
+                    st.metric("Costo Hora Est.", f"${total_consumption * 0.15:,.2f}")
+                
+                # Gráficos
+                col_pie, col_bar = st.columns(2)
+                
+                with col_pie:
+                    st.subheader("Distribución por Tipo")
+                    fig_pie, ax_pie = plt.subplots(figsize=(8, 6))
+                    colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6']
+                    wedges, texts, autotexts = ax_pie.pie(
+                        breakdown.values(), 
+                        labels=breakdown.keys(), 
+                        autopct='%1.1f%%',
+                        colors=colors[:len(breakdown)],
+                        explode=[0.02]*len(breakdown),
+                        shadow=True
+                    )
+                    ax_pie.set_title("Distribución del Consumo por Tipo de Edificio")
+                    st.pyplot(fig_pie)
+                
+                with col_bar:
+                    st.subheader("Comparativa de Consumo")
+                    fig_bar, ax_bar = plt.subplots(figsize=(8, 6))
+                    nombres = list(breakdown.keys())
+                    valores = list(breakdown.values())
+                    bars = ax_bar.barh(nombres, valores, color=colors[:len(nombres)])
+                    ax_bar.set_xlabel("Consumo (kWh)")
+                    ax_bar.set_title("Consumo por Categoría de Edificio")
+                    for bar, val in zip(bars, valores):
+                        ax_bar.text(val + max(valores)*0.01, bar.get_y() + bar.get_height()/2, 
+                                   f'{val:.1f}', va='center', fontsize=10)
+                    ax_bar.grid(True, alpha=0.3, axis='x')
+                    st.pyplot(fig_bar)
+                
+                # Tabla de detalles
+                st.subheader("Detalle por Tipo de Edificio")
+                st.dataframe(pd.DataFrame(details), use_container_width=True, hide_index=True)   
+
+       # ===== MODO SIMULACIÓN TEMPORAL =====
+        else:
+            st.subheader("📅 Simulación en Rango de Fechas")
+            
+            col_dates, col_params = st.columns(2)
+            
+            with col_dates:
+                st.markdown("**Período de Simulación**")
+                start_date = st.date_input("Fecha inicio", pd.to_datetime("2025-06-01"))
+                end_date = st.date_input("Fecha fin", pd.to_datetime("2025-06-07"))
+            
+            with col_params:
+                st.markdown("**Condiciones Fijas**")
+                temp_t = st.slider("Temperatura promedio (°C)", -5.0, 45.0, 22.0, key="tt")
+                hum_t = st.slider("Humedad promedio (%)", 0, 100, 50, key="ht")
+                wind_t = st.slider("Viento promedio (km/h)", 0.0, 50.0, 10.0, key="wt")
+            
+            # Configuración simplificada del campus
+            st.markdown("**Configuración del Campus**")
+            campus_temp = {
+                'office': {'count': st.number_input("Oficinas", 0, 50, 5, key="to"), 'area': 1500},
+                'teaching': {'count': st.number_input("Aulas", 0, 50, 8, key="tt2"), 'area': 2500},
+                'library': {'count': st.number_input("Bibliotecas", 0, 10, 1, key="tl"), 'area': 4000},
+                'mixed use': {'count': st.number_input("Uso Mixto", 0, 20, 3, key="tm"), 'area': 3000},
+                'other': {'count': st.number_input("Otros", 0, 20, 2, key="toth"), 'area': 1000}
+            }
+            
+            if st.button("Ejecutar Simulación", type="primary", use_container_width=True):
+                if start_date <= end_date:
+                    with st.spinner("Simulando consumo energético..."):
+                        # Generar rango de fechas horario
+                        full_range = pd.date_range(
+                            start=start_date, 
+                            end=end_date + pd.Timedelta(days=1) - pd.Timedelta(hours=1), 
+                            freq='h'
+                        )
+                        
+                        sim_df = pd.DataFrame({'timestamp': full_range})
+                        sim_df['hour'] = sim_df['timestamp'].dt.hour
+                        sim_df['day_of_week'] = sim_df['timestamp'].dt.dayofweek
+                        sim_df['month'] = sim_df['timestamp'].dt.month
+                        sim_df['is_holiday'] = (sim_df['day_of_week'] >= 5).astype(int)
+                        
+                        # Calcular consumo total del campus
+                        campus_load = np.zeros(len(sim_df))
+                        
+                        for cat, params in campus_temp.items():
+                            if params['count'] > 0:
+                                features_df = pd.DataFrame({
+                                    'air_temperature': [temp_t] * len(sim_df),
+                                    'relative_humidity': [hum_t] * len(sim_df),
+                                    'wind_speed': [wind_t] * len(sim_df),
+                                    'gross_floor_area': [params['area']] * len(sim_df),
+                                    'hour': sim_df['hour'],
+                                    'day_of_week': sim_df['day_of_week'],
+                                    'month': sim_df['month'],
+                                    'is_holiday': sim_df['is_holiday'],
+                                    'category': [cat] * len(sim_df)
+                                })
+                                pred_vector = final_pipeline.predict(features_df)
+                                pred_vector = np.maximum(pred_vector, 0)
+                                campus_load += pred_vector * params['count']
+                        
+                        sim_df['consumption'] = campus_load
+                        
+                        # Métricas
+                        total_energy = sim_df['consumption'].sum()
+                        avg_hourly = sim_df['consumption'].mean()
+                        max_demand = sim_df['consumption'].max()
+                        min_demand = sim_df['consumption'].min()
+                        
+                        st.markdown("---")
+                        
+                        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                        with col_m1:
+                            st.metric("Energía Total", f"{total_energy/1000:,.2f} MWh")
+                        with col_m2:
+                            st.metric("Promedio Horario", f"{avg_hourly:,.2f} kWh")
+                        with col_m3:
+                            st.metric("Demanda Máxima", f"{max_demand:,.2f} kWh")
+                        with col_m4:
+                            st.metric("Demanda Mínima", f"{min_demand:,.2f} kWh")
+                        
+                        # Gráfico de evolución temporal
+                        st.subheader("📈 Evolución del Consumo")
+                        fig_temp, ax_temp = plt.subplots(figsize=(14, 5))
+                        ax_temp.fill_between(sim_df['timestamp'], sim_df['consumption'], alpha=0.3, color='#3498db')
+                        ax_temp.plot(sim_df['timestamp'], sim_df['consumption'], color='#2980b9', linewidth=1)
+                        ax_temp.axhline(y=avg_hourly, color='red', linestyle='--', label=f'Promedio: {avg_hourly:.0f} kWh')
+                        ax_temp.set_xlabel("Fecha y Hora")
+                        ax_temp.set_ylabel("Consumo (kWh)")
+                        ax_temp.set_title("Perfil de Demanda Energética del Campus")
+                        ax_temp.legend()
+                        ax_temp.grid(True, alpha=0.3)
+                        plt.xticks(rotation=45)
+                        st.pyplot(fig_temp)
+                        
+                        # Gráficos adicionales
+                        col_g1, col_g2 = st.columns(2)
+                        
+                        with col_g1:
+                            st.subheader("Patrón Horario Promedio")
+                            hourly_avg = sim_df.groupby('hour')['consumption'].mean()
+                            fig_h, ax_h = plt.subplots(figsize=(8, 4))
+                            ax_h.bar(hourly_avg.index, hourly_avg.values, color='#3498db', edgecolor='white')
+                            ax_h.set_xlabel("Hora del día")
+                            ax_h.set_ylabel("Consumo promedio (kWh)")
+                            ax_h.set_title("Consumo Promedio por Hora")
+                            ax_h.set_xticks(range(0, 24, 2))
+                            ax_h.grid(True, alpha=0.3, axis='y')
+                            st.pyplot(fig_h)
+                        
+                        with col_g2:
+                            st.subheader("Consumo por Día")
+                            sim_df['date'] = sim_df['timestamp'].dt.date
+                            daily_total = sim_df.groupby('date')['consumption'].sum()
+                            fig_d, ax_d = plt.subplots(figsize=(8, 4))
+                            colors = ['#e74c3c' if pd.Timestamp(d).dayofweek >= 5 else '#3498db' for d in daily_total.index]
+                            ax_d.bar(range(len(daily_total)), daily_total.values, color=colors, edgecolor='white')
+                            ax_d.set_xlabel("Día")
+                            ax_d.set_ylabel("Consumo total (kWh)")
+                            ax_d.set_title("Consumo Diario Total")
+                            ax_d.set_xticks(range(len(daily_total)))
+                            ax_d.set_xticklabels([d.strftime('%d/%m') for d in daily_total.index], rotation=45)
+                            ax_d.grid(True, alpha=0.3, axis='y')
+                            st.pyplot(fig_d)
+                else:
+                    st.error("La fecha de fin debe ser posterior a la de inicio.")
+    else:
+        st.error("Modelo no encontrado. Ejecute primero 'entrenar_modelo.py'")
+          
