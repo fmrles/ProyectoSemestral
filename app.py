@@ -87,6 +87,107 @@ st.markdown("""
 
 
 
+# ----------------------------- Llamadas a Métodos ----------------------------------- 
+st.markdown('<p class="main-header"> Predicción Energética - Campus Universitario</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #666;">Sistema de predicción de consumo energético basado en Redes Neuronales </p>', unsafe_allow_html=True)
+
+# Tabs principales
+tab_sim, tab_analysis, tab_data = st.tabs([
+    "Simulador", 
+    "Análisis Predictivo",
+    "Explorador de Datos"
+]) 
+
+# -------------------------------------------------------------------------------------------
+
+# ------------------ Nuevas funciones base que ayudan en la generación de los gráficos ------------------
+
+def generate_hourly_profile(model, temp, wind, area, category, day_of_week, is_holiday):
+    """Genera perfil de consumo para las 24 horas"""
+    hours = list(range(24))
+    predictions = []
+    for hour in hours:
+        input_df = pd.DataFrame({
+            'air_temperature': [temp],
+            'relative_humidity': [50],
+            'wind_speed': [wind],
+            'gross_floor_area': [area],
+            'hour': [hour],
+            'day_of_week': [day_of_week],
+            'month': [6],
+            'is_holiday': [is_holiday],
+            'category': [category]
+        })
+        pred = model.predict(input_df)[0]
+        predictions.append(max(0, pred))
+    return hours, predictions
+
+def generate_weekly_profile(model, temp, wind, area, category):
+    """Genera perfil de consumo semanal"""
+    days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    daily_consumption = []
+    for day in range(7):
+        day_total = 0
+        for hour in range(24):
+            input_df = pd.DataFrame({
+                'air_temperature': [temp],
+                'relative_humidity': [50],
+                'wind_speed': [wind],
+                'gross_floor_area': [area],
+                'hour': [hour],
+                'day_of_week': [day],
+                'month': [6],
+                'is_holiday': [1 if day >= 5 else 0],
+                'category': [category]
+            })
+            pred = model.predict(input_df)[0]
+            day_total += max(0, pred)
+        daily_consumption.append(day_total)
+    return days, daily_consumption
+
+def generate_temperature_sensitivity(model, area, category, hour=14):
+    """Genera curva de sensibilidad a temperatura"""
+    temps = np.linspace(-5, 45, 50)
+    predictions = []
+    for temp in temps:
+        input_df = pd.DataFrame({
+            'air_temperature': [temp],
+            'relative_humidity': [50],
+            'wind_speed': [10],
+            'gross_floor_area': [area],
+            'hour': [hour],
+            'day_of_week': [2],
+            'month': [6],
+            'is_holiday': [0],
+            'category': [category]
+        })
+        pred = model.predict(input_df)[0]
+        predictions.append(max(0, pred))
+    return temps, predictions
+
+def compare_building_types(model, temp, hour):
+    """Compara consumo entre tipos de edificios"""
+    categories = ['office', 'teaching', 'library', 'mixed use', 'other']
+    labels = ['Oficinas', 'Aulas', 'Biblioteca', 'Uso Mixto', 'Otros']
+    predictions = []
+    for cat in categories:
+        input_df = pd.DataFrame({
+            'air_temperature': [temp],
+            'relative_humidity': [50],
+            'wind_speed': [10],
+            'gross_floor_area': [2000],
+            'hour': [hour],
+            'day_of_week': [2],
+            'month': [6],
+            'is_holiday': [0],
+            'category': [cat]
+        })
+        pred = model.predict(input_df)[0]
+        predictions.append(max(0, pred))
+    return labels, predictions
+# ---------------------------------------------------------------------------------------------------
+
+
 st.title("Predicción Energética - Campus Universitario")
 
 tab_exp, tab_sim, tab_context = st.tabs(["1. Lab de Entrenamiento", "2. Simulador de Campus", "3. Contexto Analítico"])
