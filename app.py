@@ -234,7 +234,7 @@ with tab_sim:
         )
         
         st.markdown("---")
-        
+
         # MODO DE EDIFICIO INVIDIDUAL
         if "Individual" in mode:
             col_inputs, col_results = st.columns([1, 2])
@@ -254,7 +254,7 @@ with tab_sim:
                     mes = st.selectbox("Mes", range(1, 13),
                                       format_func=lambda x: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][x-1],
                                       index=5)
-                    feriado = st.checkbox("¿Es día feriado?")
+                    feriado = st.checkbox("¿día feriado?")
                 
                 with st.expander("Caracteristicas del Edificio", expanded=True):
                     area = st.number_input("Área bruta (m²)", 100.0, 50000.0, 2000.0, 100.0)
@@ -264,268 +264,75 @@ with tab_sim:
                                                                   'library': 'Biblioteca', 'mixed use': 'Uso Mixto', 
                                                                   'other': 'Otros'}[x])
                 
-                predict_btn = st.button("⚡ Calcular Predicción", type="primary", use_container_width=True)
+                predict_btn = st.button("Calcular Predicción", type="primary", use_container_width=True)
 
-            else:
-                st.subheader("2. Composición Personalizada del Campus")
-                st.info("Define la cantidad de edificios y el área unitaria para cada tipo.")
-                
-                h1, h2, h3 = st.columns([1, 1, 2])
-                with h1: st.markdown("**Tipo de Edificio**")
-                with h2: st.markdown("**Cantidad**")
-                with h3: st.markdown("**Área Unitaria (m²)**")
-
-                campus_config = []
-                
-                c_off1, c_off2, c_off3 = st.columns([1, 1, 2])
-                with c_off1: st.markdown("Oficinas")
-                with c_off2: q_off = st.number_input("Cant. Oficinas", 0, 50, 5, key="q_off", label_visibility="collapsed")
-                with c_off3: a_off = st.number_input("Área Oficina", 100, 10000, 1500, key="a_off", label_visibility="collapsed")
-                campus_config.append({'cat': 'office', 'count': q_off, 'area': a_off})
-
-                c_tea1, c_tea2, c_tea3 = st.columns([1, 1, 2])
-                with c_tea1: st.markdown("Aulas")
-                with c_tea2: q_tea = st.number_input("Cant. Aulas", 0, 50, 8, key="q_tea", label_visibility="collapsed")
-                with c_tea3: a_tea = st.number_input("Área Aulas", 100, 10000, 2500, key="a_tea", label_visibility="collapsed")
-                campus_config.append({'cat': 'teaching', 'count': q_tea, 'area': a_tea})
-
-                c_lib1, c_lib2, c_lib3 = st.columns([1, 1, 2])
-                with c_lib1: st.markdown("Bibliotecas")
-                with c_lib2: q_lib = st.number_input("Cant. Bibliotecas", 0, 10, 1, key="q_lib", label_visibility="collapsed")
-                with c_lib3: a_lib = st.number_input("Área Biblioteca", 100, 20000, 4000, key="a_lib", label_visibility="collapsed")
-                campus_config.append({'cat': 'library', 'count': q_lib, 'area': a_lib})
-
-                c_mix1, c_mix2, c_mix3 = st.columns([1, 1, 2])
-                with c_mix1: st.markdown("Uso Mixto")
-                with c_mix2: q_mix = st.number_input("Cant. Mixto", 0, 20, 2, key="q_mix", label_visibility="collapsed")
-                with c_mix3: a_mix = st.number_input("Área Mixto", 100, 15000, 3000, key="a_mix", label_visibility="collapsed")
-                campus_config.append({'cat': 'mixed use', 'count': q_mix, 'area': a_mix})
-
-                c_oth1, c_oth2, c_oth3 = st.columns([1, 1, 2])
-                with c_oth1: st.markdown("Otros")
-                with c_oth2: q_oth = st.number_input("Cant. Otros", 0, 20, 2, key="q_oth", label_visibility="collapsed")
-                with c_oth3: a_oth = st.number_input("Área Otros", 100, 5000, 1000, key="q_oth_area", label_visibility="collapsed")
-                campus_config.append({'cat': 'other', 'count': q_oth, 'area': a_oth})
-                
-                st.markdown("---")
-
-                if st.button("Simular Campus Completo", type="primary"):
-                    total_consumption = 0
-                    breakdown = {}
+            with col_results:
+                if predict_btn:
+                    # Realizar predicción
+                    input_df = pd.DataFrame({
+                        'air_temperature': [temp],
+                        'relative_humidity': [humidity],
+                        'wind_speed': [wind],
+                        'gross_floor_area': [area],
+                        'hour': [hora],
+                        'day_of_week': [dia],
+                        'month': [mes],
+                        'is_holiday': [1 if feriado else 0],
+                        'category': [categoria]
+                    })
+                    prediction = final_pipeline.predict(input_df)[0]
+                    prediction = max(0, prediction)
                     
-                    for item in campus_config:
-                        count = item['count']
-                        area_user = item['area']
-                        cat = item['cat']
-                        
-                        if count > 0:
-                            input_df = pd.DataFrame({
-                                'air_temperature': [temp], 'relative_humidity': [50], 'wind_speed': [wind],
-                                'gross_floor_area': [area_user], 'hour': [hora], 'day_of_week': [dia],
-                                'month': [6], 'is_holiday': [1 if feriado else 0], 'category': [cat]
-                            })
-                            
-                            pred_unit = final_pipeline.predict(input_df)[0]
-                            total_cat = pred_unit * count
-                            
-                            total_consumption += total_cat
-                            breakdown[cat] = total_cat
-
-                    c_res1, c_res2 = st.columns([1, 2])
+                    # Mostrar resultado principal en pantalla
+                    st.subheader("Resultado de la Predicción")
                     
-                    with c_res1:
-                        st.metric("Consumo TOTAL Campus", f"{total_consumption:,.2f} kWh", delta="Simulación instantánea")
-                        st.caption(f"Calculado para {hora}:00 hrs con condiciones actuales.")
-                    
-                    with c_res2:
-                        st.write("#### Distribución del Consumo por Tipo")
-                        if total_consumption > 0:
-                            fig, ax = plt.subplots(figsize=(6, 3))
-                            labels = list(breakdown.keys())
-                            values = list(breakdown.values())
-                            colors = ['#ff9999','#66b3ff','#99ff99','#ffcc99','#c2c2f0']
-                            ax.pie(values, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors[:len(labels)])
-                            ax.axis('equal') 
-                            st.pyplot(fig)
-                        else:
-                            st.warning("Configura al menos un edificio para ver resultados.")
-
-
-        else:
-            st.subheader("1. Condiciones Ambientales Fijas y Temporales")
-            
-            col_t_clim, col_t_wind, col_t_hum = st.columns(3)
-            with col_t_clim: temp_t = st.slider("Temperatura Fija (°C)", -5.0, 45.0, 22.0, key="temp_t")
-            with col_t_hum: hum_t = st.slider("Humedad Fija (%)", 0, 100, 50, key="hum_t")
-            with col_t_wind: wind_t = st.number_input("Viento Fijo (km/h)", 0.0, 100.0, 12.0, key="wind_t")
-            
-            st.markdown("---")
-            
-            col_date1, col_date2 = st.columns(2)
-            with col_date1: start_date = st.date_input("Fecha Inicio", pd.to_datetime("2025-06-01"))
-            with col_date2: end_date = st.date_input("Fecha Fin", pd.to_datetime("2025-06-07"))
-
-            st.subheader("2. Configuración del Campus")
-            
-            
-            h1_t, h2_t, h3_t = st.columns([1, 1, 2])
-            with h1_t: st.markdown("**Tipo de Edificio**")
-            with h2_t: st.markdown("**Cantidad**")
-            with h3_t: st.markdown("**Área Unitaria (m²)**")
-            
-            campus_config_temp = {}
-            
-            c_off1, c_off_inputs = st.columns([1, 3]) 
-            with c_off1: st.markdown("Oficinas")
-            with c_off_inputs:
-                c_q, c_a = st.columns([1, 2]) 
-                with c_q: q_off = st.number_input("Cant. Oficinas", 0, 50, 5, key="tq_off", label_visibility="collapsed")
-                with c_a: a_off = st.number_input("Área Oficina", 100, 10000, 1500, key="taq_off", label_visibility="collapsed")
-                campus_config_temp['office'] = {'count': q_off, 'area': a_off}
-
-            c_tea1, c_tea_inputs = st.columns([1, 3])
-            with c_tea1: st.markdown("Aulas")
-            with c_tea_inputs:
-                c_q, c_a = st.columns([1, 2])
-                with c_q: q_tea = st.number_input("Cant. Aulas", 0, 50, 8, key="tq_tea", label_visibility="collapsed")
-                with c_a: a_tea = st.number_input("Área Aulas", 100, 10000, 2500, key="taq_tea", label_visibility="collapsed")
-                campus_config_temp['teaching'] = {'count': q_tea, 'area': a_tea}
-
-            c_lib1, c_lib_inputs = st.columns([1, 3])
-            with c_lib1: st.markdown("Bibliotecas")
-            with c_lib_inputs:
-                c_q, c_a = st.columns([1, 2])
-                with c_q: q_lib = st.number_input("Cant. Bibliotecas", 0, 10, 1, key="tq_lib", label_visibility="collapsed")
-                with c_a: a_lib = st.number_input("Área Biblioteca", 100, 20000, 4000, key="taq_lib", label_visibility="collapsed")
-                campus_config_temp['library'] = {'count': q_lib, 'area': a_lib}
-
-            c_mix1, c_mix_inputs = st.columns([1, 3])
-            with c_mix1: st.markdown("Uso Mixto")
-            with c_mix_inputs:
-                c_q, c_a = st.columns([1, 2])
-                with c_q: q_mix = st.number_input("Cant. Mixto", 0, 20, 2, key="tq_mix", label_visibility="collapsed")
-                with c_a: a_mix = st.number_input("Área Mixto", 100, 15000, 3000, key="taq_mix", label_visibility="collapsed")
-                campus_config_temp['mixed use'] = {'count': q_mix, 'area': a_mix}
-
-            c_oth1, c_oth_inputs = st.columns([1, 3])
-            with c_oth1: st.markdown("Otros")
-            with c_oth_inputs:
-                c_q, c_a = st.columns([1, 2])
-                with c_q: q_oth = st.number_input("Cant. Otros", 0, 20, 2, key="tq_oth", label_visibility="collapsed")
-                with c_a: a_oth = st.number_input("Área Otros", 100, 5000, 1000, key="taq_oth", label_visibility="collapsed")
-                campus_config_temp['other'] = {'count': q_oth, 'area': a_oth}
-            
-            
-            st.subheader("3. Editor de Eventos Diarios")
-
-            if start_date <= end_date:
-                days_range = pd.date_range(start=start_date, end=end_date, freq='D')
-                
-                default_data = {
-                    "Fecha": days_range.date,
-                    "Es Feriado": [d.dayofweek >= 5 for d in days_range],
-                    "Corte de Luz": [False] * len(days_range)
-                }
-                schedule_df = pd.DataFrame(default_data)
-                
-                edited_schedule = st.data_editor(
-                    schedule_df,
-                    column_config={
-                        "Fecha": st.column_config.DateColumn("Fecha", disabled=True),
-                        "Es Feriado": st.column_config.CheckboxColumn("¿Es Feriado?"),
-                        "Corte de Luz": st.column_config.CheckboxColumn("Corte Programado")
-                    },
-                    hide_index=True,
-                    num_rows="fixed"
-                )
-
-                if st.button("Simular Periodo", type="primary"):
-                    
-                    full_range = pd.date_range(start=start_date, end=end_date + pd.Timedelta(days=1) - pd.Timedelta(hours=1), freq='h')
-                    
-                    sim_df = pd.DataFrame({'timestamp': full_range})
-                    sim_df['date'] = sim_df['timestamp'].dt.date
-                    sim_df['hour'] = sim_df['timestamp'].dt.hour
-                    sim_df['day_of_week'] = sim_df['timestamp'].dt.dayofweek
-                    sim_df['month'] = sim_df['timestamp'].dt.month
-                    
-                    sim_df['air_temperature'] = temp_t
-                    sim_df['relative_humidity'] = hum_t
-                    sim_df['wind_speed'] = wind_t
-                    
-                    schedule_map = edited_schedule.set_index("Fecha").to_dict('index')
-                    
-                    def get_safe_event(date_obj, column):
-                        try:
-                            return 1 if schedule_map[date_obj][column] else 0
-                        except KeyError:
-                            return 0 
-
-                    sim_df['is_holiday'] = sim_df['date'].apply(lambda x: get_safe_event(x, 'Es Feriado'))
-                    sim_df['power_outage'] = sim_df['date'].apply(lambda x: get_safe_event(x, 'Corte de Luz'))
-
-                    campus_total_load = np.zeros(len(sim_df))
-                    
-                    for cat, params in campus_config_temp.items():
-                        count = params['count']
-                        area_user = params['area']
-                        
-                        if count > 0:
-                            features_df = sim_df[['air_temperature', 'relative_humidity', 'wind_speed', 'hour', 'day_of_week', 'month', 'is_holiday']].copy()
-                            features_df['gross_floor_area'] = area_user
-                            features_df['category'] = cat
-                            
-                            input_cols = ['air_temperature', 'relative_humidity', 'wind_speed', 'gross_floor_area', 'hour', 'day_of_week', 'month', 'is_holiday', 'category']
-                            pred_vector = final_pipeline.predict(features_df[input_cols])
-                            campus_total_load += (pred_vector * count)
-
-                    final_load = np.where(sim_df['power_outage'], 0, campus_total_load)
-                    
-                    total_energy = np.sum(final_load)
+                    col_m1, col_m2, col_m3 = st.columns(3)
+                    with col_m1:
+                        st.metric("Consumo Estimado", f"{prediction:.2f} kWh")
+                    with col_m2:
+                        consumo_diario_est = prediction * 24
+                        st.metric("Estimado Diario", f"{consumo_diario_est:.0f} kWh")
+                    with col_m3:
+                        costo_est = prediction * 0.15  # Precio estimado kWh
+                        st.metric("Costo Hora (est.)", f"${costo_est:.2f}")
                     
                     st.markdown("---")
-                    col_res1, col_res2 = st.columns([1, 3])
                     
-                    with col_res1:
-                        st.metric("Energía Total Periodo", f"{total_energy/1000:,.2f} MWh")
-                        st.caption(f"Periodo: {len(days_range)} días")
-
-                    with col_res2:
-                        st.subheader("Evolución del Consumo (Simulación)")
-                        
-                        fig, ax = plt.subplots(figsize=(10, 4))
-                        ax.plot(sim_df['timestamp'], final_load, label="Consumo Estimado (kWh)", color="#1f77b4")
-                        
-                        outage_times = sim_df[sim_df['power_outage'] == 1]['timestamp']
-                        if not outage_times.empty:
-                            ax.scatter(outage_times, [0]*len(outage_times), color='red', label="Corte Programado", zorder=5, s=10)
-                        
-                        ax.set_ylabel("Potencia (kW)")
-                        ax.set_title("Perfil de Demanda Energética del Campus")
-                        ax.grid(True, alpha=0.3)
-                        ax.legend()
-                        st.pyplot(fig)
-            else:
-                st.error("La fecha de fin debe ser posterior a la de inicio.")
-                
-            
-    else:
-        st.error("Modelo offline no encontrado. Ejecuta 'entrenar_modelo.py' primero.")
-
-
-with tab_context:
-    st.header("Contexto del Modelo (Pre-Entrenamiento)")
-    
-    col_metrics, col_graph = st.columns([1, 2])
-    with col_metrics:
-        st.subheader("Arquitectura")
-        if final_pipeline:
-            mlp = final_pipeline.named_steps['regressor']
-            st.code(f"Capas: {mlp.hidden_layer_sizes}\nActiv: {mlp.activation}\nIter: {mlp.n_iter_}")
-    with col_graph:
-        st.subheader("Convergencia Real")
-        if loss_history_offline:
-            fig3, ax3 = plt.subplots(figsize=(8, 3))
-            ax3.plot(loss_history_offline, color='green')
-            ax3.set_ylabel("Loss")
-            st.pyplot(fig3)
+                    # Gráficos
+                    col_g1, col_g2 = st.columns(2)
+                    
+                    with col_g1:
+                        st.subheader("Perfil Horario (24h)")
+                        hours, hourly_pred = generate_hourly_profile(
+                            final_pipeline, temp, wind, area, categoria, dia, 1 if feriado else 0
+                        )
+                        fig1, ax1 = plt.subplots(figsize=(8, 4))
+                        ax1.fill_between(hours, hourly_pred, alpha=0.3, color='#3498db')
+                        ax1.plot(hours, hourly_pred, 'o-', color='#2980b9', linewidth=2, markersize=4)
+                        ax1.axvline(x=hora, color='red', linestyle='--', label=f'Hora actual ({hora}:00)')
+                        ax1.scatter([hora], [prediction], color='red', s=100, zorder=5)
+                        ax1.set_xlabel("Hora del día")
+                        ax1.set_ylabel("Consumo (kWh)")
+                        ax1.set_title("Evolución del Consumo Durante el Día")
+                        ax1.set_xticks(range(0, 24, 2))
+                        ax1.grid(True, alpha=0.3)
+                        ax1.legend()
+                        st.pyplot(fig1)
+                    
+                    with col_g2:
+                        st.subheader("Perfil Semanal")
+                        days, weekly_pred = generate_weekly_profile(
+                            final_pipeline, temp, wind, area, categoria
+                        )
+                        fig2, ax2 = plt.subplots(figsize=(8, 4))
+                        colors = ['#3498db' if i < 5 else '#e74c3c' for i in range(7)]
+                        bars = ax2.bar(days, weekly_pred, color=colors, edgecolor='white', linewidth=1.5)
+                        ax2.axhline(y=np.mean(weekly_pred), color='green', linestyle='--', label=f'Promedio: {np.mean(weekly_pred):.0f} kWh')
+                        ax2.set_xlabel("Día de la semana")
+                        ax2.set_ylabel("Consumo diario (kWh)")
+                        ax2.set_title("Distribución Semanal del Consumo")
+                        ax2.legend()
+                        ax2.grid(True, alpha=0.3, axis='y')
+                        st.pyplot(fig2)
+                else:
+                    st.info("Debe configurar los parámetros y presione 'Calcular Predicción' para ver los resultados.")
