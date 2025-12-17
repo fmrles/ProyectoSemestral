@@ -10,12 +10,18 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
 import os
 
+# corresponde a la configuración de la página
 st.set_page_config(
     page_title="Predicción Energética: Campus UBB",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+
+
+
+
+# ------------------------ Recarga de Recursos ---------------------
 @st.cache_resource
 def load_resources():
     resources = {}
@@ -35,17 +41,29 @@ final_pipeline = resources['model']
 loss_history_offline = resources['loss_history']
 
 @st.cache_data
-def get_synthetic_data():
-    N = 1000
-    dates = pd.date_range(start="2025-01-01", periods=N, freq="h")
-    data = {
-        'air_temperature': np.random.uniform(5, 35, N), 
-        'gross_floor_area': np.random.uniform(500, 5000, N), 
-        'hour': dates.hour
-    }
-    df = pd.DataFrame(data)
-    df['consumption'] = (df['air_temperature'] - 20)**2 + df['gross_floor_area']*0.05 + np.random.normal(0,5,N) + 200
-    return df
+def load_dataset():
+    """Carga el dataset original para análisis"""
+    try:
+        df_consumption = pd.read_csv('dataset/building_consumption.csv')
+        df_weather = pd.read_csv('dataset/weather_data.csv')
+        df_meta = pd.read_csv('dataset/building_meta.csv')
+        return df_consumption, df_weather, df_meta
+    except:
+        return None, None, None
+
+resources = load_resources()
+final_pipeline = resources['model']
+loss_history_offline = resources['loss_history']
+df_consumption, df_weather, df_meta = load_dataset() 
+
+# ---------------------------------------------------------------------------------
+
+
+
+
+
+
+
 
 st.title("Predicción Energética - Campus Universitario")
 
