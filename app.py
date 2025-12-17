@@ -120,7 +120,7 @@ def generate_weekly_profile(model, temp, wind, area, category):
             input_df = pd.DataFrame({
                 'air_temperature': [temp], 'relative_humidity': [50], 'wind_speed': [wind],
                 'gross_floor_area': [area], 'hour': [hour], 'day_of_week': [day],
-                'month': [6], 'is_holiday': [1 if day >= 5 else 0], 'category': [category]
+                'month': [6], 'is_holiday': [0 if day >= 5 else 1], 'category': [category]
             })
             pred = model.predict(input_df)[0]
             day_total += max(0, pred)
