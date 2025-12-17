@@ -9,8 +9,6 @@ Este es un sistema de predicción de consumo energético para campus universitar
 - Simulación temporal con rango de fechas
 - Análisis de sensibilidad térmica
 - Comparativa entre tipos de edificios
-- Laboratorio de experimentación MLP vs Regresión Lineal
-- Visualización de métricas y convergencia del modelo
 - Explorador del dataset
 
 ## Instalación
