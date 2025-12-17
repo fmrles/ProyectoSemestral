@@ -88,10 +88,8 @@ st.markdown("""
 
 
 # ----------------------------- Llamadas a Métodos ----------------------------------- 
-st.markdown('<p class="main-header"> Predicción Energética - Campus Universitario</p>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #666;">Sistema de predicción de consumo energético basado en Redes Neuronales </p>', unsafe_allow_html=True)
 
-# Tabs principales
+# Tabs utlilizados
 tab_sim, tab_analysis, tab_data = st.tabs([
     "Simulador", 
     "Análisis Predictivo",
@@ -649,3 +647,68 @@ with tab_analysis:
 
 # -------------------------------------------------------------------------------------------------------------------------
           
+# -------------------------------- Tab de opción para visualizar los datos csv a utsar -------------------------------------- 
+
+# ==================== TAB 5: EXPLORADOR DE DATOS ====================
+with tab_data:
+    st.header("Explorador de Dataset")
+    
+    if df_consumption is not None:
+        tab_overview, tab_weather, tab_buildings = st.tabs(["Consumo", "Clima", "Edificios"])
+        
+        with tab_overview:
+            st.subheader("Datos de Consumo Energético")
+            st.dataframe(df_consumption.head(100), use_container_width=True)
+            
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                st.metric("Total Registros", f"{len(df_consumption):,}")
+            with col_s2:
+                st.metric("Edificios Únicos", df_consumption['meter_id'].nunique())
+            
+           
+            st.subheader("Estadísticas de Consumo")
+            stats = df_consumption['consumption'].describe()
+            col_st1, col_st2, col_st3, col_st4 = st.columns(4)
+            with col_st1:
+                st.metric("Promedio", f"{stats['mean']:.2f} kWh")
+            with col_st2:
+                st.metric("Mediana", f"{stats['50%']:.2f} kWh")
+            with col_st3:
+                st.metric("Mínimo", f"{stats['min']:.2f} kWh")
+            with col_st4:
+                st.metric("Máximo", f"{stats['max']:.2f} kWh")
+        
+        with tab_weather:
+            st.subheader("Datos Meteorológicos")
+            st.dataframe(df_weather.head(100), use_container_width=True)
+            
+            if 'air_temperature' in df_weather.columns:
+                st.subheader("Distribución de Temperatura")
+                fig_temp, ax_temp = plt.subplots(figsize=(10, 4))
+                ax_temp.hist(df_weather['air_temperature'].dropna(), bins=50, color='#3498db', edgecolor='white')
+                ax_temp.set_xlabel("Temperatura (°C)")
+                ax_temp.set_ylabel("Frecuencia")
+                ax_temp.set_title("Distribución de Temperaturas en el Dataset")
+                ax_temp.grid(True, alpha=0.3)
+                st.pyplot(fig_temp)
+        
+        with tab_buildings:
+            st.subheader("Metadatos de Edificios")
+            st.dataframe(df_meta, use_container_width=True)
+            
+            if 'category' in df_meta.columns:
+                st.subheader("Distribución por Categoría")
+                cat_counts = df_meta['category'].value_counts()
+                fig_cat, ax_cat = plt.subplots(figsize=(10, 4))
+                ax_cat.bar(cat_counts.index, cat_counts.values, color='#3498db', edgecolor='white')
+                ax_cat.set_xlabel("Categoría")
+                ax_cat.set_ylabel("Cantidad de Edificios")
+                ax_cat.set_title("Cantidad de Edificios por Categoría")
+                plt.xticks(rotation=45)
+                ax_cat.grid(True, alpha=0.3, axis='y')
+                st.pyplot(fig_cat)
+    else:
+        st.warning("ERROR! No se pudieron cargar los datos.") 
+
+# ---------------------------------------------------------------------------------------------------------------------------------
