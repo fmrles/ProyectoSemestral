@@ -188,39 +188,7 @@ def compare_building_types(model, temp, hour):
 # ---------------------------------------------------------------------------------------------------
 
 
-st.title("Predicción Energética - Campus Universitario")
 
-
-
-with tab_exp:
-    st.header("Laboratorio de Entrenamiento en Vivo")
-    st.info("Entrena una versión simplificada del modelo para probar hiperparámetros.")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        h_layers = eval(st.selectbox("Capas Ocultas", ['(50,)', '(100, 50)', '(64, 32)'], index=0))
-    with col2:
-        iters = st.slider("Iteraciones", 50, 500, 200)
-
-    if st.button("Entrenar Demo"):
-        df_synth = get_synthetic_data()
-        X = df_synth[['air_temperature', 'gross_floor_area', 'hour']]
-        y = df_synth['consumption']
-        
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        model = MLPRegressor(hidden_layer_sizes=h_layers, max_iter=iters, random_state=42)
-        model.fit(X_scaled, y)
-        
-        st.subheader("Curva de Aprendizaje")
-        fig, ax = plt.subplots(figsize=(8, 3))
-        ax.plot(model.loss_curve_)
-        ax.set_xlabel("Iteraciones")
-        ax.set_ylabel("Loss")
-        ax.grid(True, alpha=0.3)
-        st.pyplot(fig)
-        st.success(f"Entrenamiento finalizado. Loss: {model.loss_:.4f}")
 
 # ----------------------------- Tab Simulador de consumo energétito --------------------------------------------
 with tab_sim:
@@ -460,7 +428,7 @@ with tab_sim:
 
        # ===== MODO SIMULACIÓN TEMPORAL =====
         else:
-            st.subheader("📅 Simulación en Rango de Fechas")
+            st.subheader("Simulación en Rango de Fechas")
             
             col_dates, col_params = st.columns(2)
             
@@ -542,7 +510,7 @@ with tab_sim:
                             st.metric("Demanda Mínima", f"{min_demand:,.2f} kWh")
                         
                         # Gráfico de evolución temporal
-                        st.subheader("📈 Evolución del Consumo")
+                        st.subheader("Evolución del Consumo")
                         fig_temp, ax_temp = plt.subplots(figsize=(14, 5))
                         ax_temp.fill_between(sim_df['timestamp'], sim_df['consumption'], alpha=0.3, color='#3498db')
                         ax_temp.plot(sim_df['timestamp'], sim_df['consumption'], color='#2980b9', linewidth=1)
@@ -587,5 +555,97 @@ with tab_sim:
                 else:
                     st.error("La fecha de fin debe ser posterior a la de inicio.")
     else:
-        st.error("Modelo no encontrado. Ejecute primero 'entrenar_modelo.py'")
+        st.error("Modelo no encontrado. Ejecute primero 'entrenar_modelo.py'") 
+
+#------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+# ------------------------------------------ Tab de análisis del modelo ------------------------------------------
+with tab_analysis:
+    st.header("Análisis Predictivo del Modelo")
+    
+    if final_pipeline:
+        col_params, col_viz = st.columns([1, 3])
+        
+        with col_params:
+            st.subheader("Parámetros")
+            area_an = st.number_input("Área del edificio (m²)", 500, 10000, 2000, key="area_an")
+            cat_an = st.selectbox("Tipo de edificio", ['office', 'teaching', 'library', 'mixed use', 'other'], key="cat_an")
+            hora_an = st.slider("Hora de referencia", 0, 23, 14, key="hora_an")
+            temp_an = st.slider("Temperatura de referencia (°C)", -5.0, 45.0, 22.0, key="temp_an")
+        
+        with col_viz:
+            tab_sens, tab_comp, tab_pattern = st.tabs(["Sensibilidad Térmica", "Comparativa Edificios", "Patrones"])
+            
+            with tab_sens:
+                st.subheader("Sensibilidad a la Temperatura")
+                temps, temp_preds = generate_temperature_sensitivity(final_pipeline, area_an, cat_an, hora_an)
+                
+                fig_sens, ax_sens = plt.subplots(figsize=(10, 5))
+                ax_sens.fill_between(temps, temp_preds, alpha=0.3, color='#e74c3c')
+                ax_sens.plot(temps, temp_preds, color='#c0392b', linewidth=2)
+                ax_sens.axvline(x=temp_an, color='blue', linestyle='--', label=f'Temp. actual: {temp_an}°C')
+                ax_sens.axvline(x=20, color='green', linestyle=':', alpha=0.7, label='Zona de confort (20°C)')
+                ax_sens.set_xlabel("Temperatura (°C)")
+                ax_sens.set_ylabel("Consumo estimado (kWh)")
+                ax_sens.set_title(f"Curva de Sensibilidad Térmica - {cat_an.title()} ({area_an} m²)")
+                ax_sens.legend()
+                ax_sens.grid(True, alpha=0.3)
+                st.pyplot(fig_sens)
+                
+                st.info("**Interpretación**: La curva muestra cómo varía el consumo energético según la temperatura. "
+                       "Temperaturas extremas aumentan el consumo por uso de climatización.")
+            
+            with tab_comp:
+                st.subheader("Comparativa entre Tipos de Edificio")
+                labels, type_preds = compare_building_types(final_pipeline, temp_an, hora_an)
+                
+                fig_comp, ax_comp = plt.subplots(figsize=(10, 5))
+                colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6']
+                bars = ax_comp.bar(labels, type_preds, color=colors, edgecolor='white', linewidth=2)
+                ax_comp.set_ylabel("Consumo estimado (kWh)")
+                ax_comp.set_title(f"Comparación de Consumo por Tipo de Edificio\n(2000 m², {temp_an}°C, {hora_an}:00)")
+                ax_comp.grid(True, alpha=0.3, axis='y')
+                
+                for bar, val in zip(bars, type_preds):
+                    ax_comp.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
+                                f'{val:.1f}', ha='center', fontsize=11, fontweight='bold')
+                st.pyplot(fig_comp)
+            
+            with tab_pattern:
+                st.subheader("Patrones Temporales")
+                
+                # Perfil horario
+                hours, hourly = generate_hourly_profile(final_pipeline, temp_an, 10, area_an, cat_an, 2, 0)
+                
+                fig_pat, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+                
+                # Gráfico horario
+                ax1.fill_between(hours, hourly, alpha=0.3, color='#3498db')
+                ax1.plot(hours, hourly, 'o-', color='#2980b9', linewidth=2, markersize=4)
+                ax1.axvspan(8, 18, alpha=0.1, color='yellow', label='Horario laboral')
+                ax1.set_xlabel("Hora")
+                ax1.set_ylabel("Consumo (kWh)")
+                ax1.set_title("Patrón de Consumo Diario")
+                ax1.set_xticks(range(0, 24, 2))
+                ax1.legend()
+                ax1.grid(True, alpha=0.3)
+                
+                # Gráfico semanal
+                days, weekly = generate_weekly_profile(final_pipeline, temp_an, 10, area_an, cat_an)
+                colors = ['#3498db']*5 + ['#e74c3c']*2
+                ax2.bar(days, weekly, color=colors, edgecolor='white', linewidth=2)
+                ax2.axhline(y=np.mean(weekly), color='green', linestyle='--', label=f'Promedio: {np.mean(weekly):.0f}')
+                ax2.set_xlabel("Día")
+                ax2.set_ylabel("Consumo diario (kWh)")
+                ax2.set_title("Patrón de Consumo Semanal")
+                ax2.legend()
+                ax2.grid(True, alpha=0.3, axis='y')
+                
+                st.pyplot(fig_pat)
+    else:
+        st.error("Modelo no disponible") 
+
+# -------------------------------------------------------------------------------------------------------------------------
           
