@@ -18,9 +18,6 @@ st.set_page_config(
 )
 
 
-
-
-
 # ------------------------ Recarga de Recursos ---------------------
 @st.cache_resource
 def load_resources():
@@ -59,9 +56,34 @@ df_consumption, df_weather, df_meta = load_dataset()
 # ---------------------------------------------------------------------------------
 
 
+# --------------------- Nuevos estilos CSS para páginas ---------------------------
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #1a5276;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .metric-card {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding: 10px 20px;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-
-
+# ----------------------------------------------------------------------------------
 
 
 
