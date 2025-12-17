@@ -190,7 +190,7 @@ def compare_building_types(model, temp, hour):
 
 st.title("Predicción Energética - Campus Universitario")
 
-tab_exp, tab_sim, tab_context = st.tabs(["1. Lab de Entrenamiento", "2. Simulador de Campus", "3. Contexto Analítico"])
+
 
 with tab_exp:
     st.header("Laboratorio de Entrenamiento en Vivo")
@@ -222,41 +222,49 @@ with tab_exp:
         st.pyplot(fig)
         st.success(f"Entrenamiento finalizado. Loss: {model.loss_:.4f}")
 
+# ----------------------------- Tab Simulador de consumo energétito --------------------------------------------
 with tab_sim:
     st.header("Simulador de Consumo: Escenario Campus")
     
     if final_pipeline:
-        mode = st.radio("Modo de Simulación:", 
-                        ["Edificio Individual (Instantáneo)", 
-                         "Campus Completo (Instantáneo)",
-                         "Simulación Temporal (Rango de Fechas)"],
-                        horizontal=True)
+        mode = st.radio(
+            "Seleccione modo de simulación:",
+            ["Edificio Individual", "Campus Completo", "Simulación Temporal"],
+            horizontal=True
+        )
+        
         st.markdown("---")
-
-        if mode in ["Edificio Individual (Instantáneo)", "Campus Completo (Instantáneo)"]:
+        
+        # MODO DE EDIFICIO INVIDIDUAL
+        if "Individual" in mode:
+            col_inputs, col_results = st.columns([1, 2])
             
-            st.subheader("1. Condiciones Ambientales y Temporales")
-            c1, c2, c3, c4 = st.columns(4)
-            with c1: temp = st.slider("Temperatura (°C)", -5.0, 45.0, 22.0)
-            with c2: wind = st.number_input("Viento (km/h)", 0.0, 100.0, 12.0)
-            with c3: hora = st.slider("Hora del Día", 0, 23, 14) 
-            with c4: dia = st.selectbox("Día Semana", range(7), format_func=lambda x: ['Lun','Mar','Mie','Jue','Vie','Sab','Dom'][x])
-            feriado = st.checkbox("¿Es Feriado?")
-
-            if "Edificio Individual" in mode:
-                st.subheader("2. Detalles del Edificio")
-                cc1, cc2 = st.columns(2)
-                with cc1: area = st.number_input("Área (m²)", 100.0, 10000.0, 1500.0)
-                with cc2: cat = st.selectbox("Categoría", ['office', 'teaching', 'library', 'mixed use', 'other'])
+            with col_inputs:
+                st.subheader("Parámetros de Entrada")
                 
-                if st.button("Calcular Consumo Individual", type="primary"):
-                    input_df = pd.DataFrame({
-                        'air_temperature': [temp], 'relative_humidity': [50], 'wind_speed': [wind],
-                        'gross_floor_area': [area], 'hour': [hora], 'day_of_week': [dia],
-                        'month': [6], 'is_holiday': [1 if feriado else 0], 'category': [cat]
-                    })
-                    pred = final_pipeline.predict(input_df)[0]
-                    st.metric("Consumo Estimado", f"{pred:.2f} kWh")
+                with st.expander("Condiciones Ambientales", expanded=True):
+                    temp = st.slider("Temperatura (°C)", -5.0, 45.0, 22.0, 0.5)
+                    humidity = st.slider("Humedad Relativa (%)", 0, 100, 50)
+                    wind = st.slider("Velocidad del Viento (km/h)", 0.0, 50.0, 10.0, 0.5)
+                
+                with st.expander("Contexto Temporal", expanded=True):
+                    hora = st.slider("Hora del Día", 0, 23, 14)
+                    dia = st.selectbox("Día de la Semana", range(7), 
+                                      format_func=lambda x: ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][x])
+                    mes = st.selectbox("Mes", range(1, 13),
+                                      format_func=lambda x: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][x-1],
+                                      index=5)
+                    feriado = st.checkbox("¿Es día feriado?")
+                
+                with st.expander("Caracteristicas del Edificio", expanded=True):
+                    area = st.number_input("Área bruta (m²)", 100.0, 50000.0, 2000.0, 100.0)
+                    categoria = st.selectbox("Tipo de Edificio", 
+                                            ['office', 'teaching', 'library', 'mixed use', 'other'],
+                                            format_func=lambda x: {'office': 'Oficinas', 'teaching': 'Aulas', 
+                                                                  'library': 'Biblioteca', 'mixed use': 'Uso Mixto', 
+                                                                  'other': 'Otros'}[x])
+                
+                predict_btn = st.button("⚡ Calcular Predicción", type="primary", use_container_width=True)
 
             else:
                 st.subheader("2. Composición Personalizada del Campus")
